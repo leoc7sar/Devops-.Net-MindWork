@@ -1,0 +1,60 @@
+trigger:
+  branches:
+    include:
+      - main    # roda sempre que tiver commit/merge na main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+# Usa o SDK do .NET (ajuste a versão se seu projeto for 7 ou 6)
+- task: UseDotNet@2
+  displayName: 'Instalar .NET SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '8.x'
+    installationPath: $(Agent.ToolsDirectory)/dotnet
+
+# Restaura os pacotes
+- task: DotNetCoreCLI@2
+  displayName: 'Restore'
+  inputs:
+    command: 'restore'
+    projects: '**/*.sln'
+
+# Build
+- task: DotNetCoreCLI@2
+  displayName: 'Build'
+  inputs:
+    command: 'build'
+    projects: '**/*.sln'
+    arguments: '--configuration $(buildConfiguration)'
+
+# Testes (xUnit etc.)
+- task: DotNetCoreCLI@2
+  displayName: 'Testes automatizados'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests/*.csproj'
+    arguments: '--configuration $(buildConfiguration) --collect "XPlat Code Coverage"'
+    publishTestResults: true
+
+# Publica a API em formato pronto pra deploy (zip)
+- task: DotNetCoreCLI@2
+  displayName: 'Publicar Web API'
+  inputs:
+    command: 'publish'
+    publishWebProjects: true
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+    zipAfterPublish: true
+
+# Publica o artefato da Build (usado depois na Release)
+- task: PublishBuildArtifacts@1
+  displayName: 'Publicar artefatos'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
