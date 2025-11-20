@@ -1,0 +1,39 @@
+subscriptionId="2025-2TDSPF-RODRIGO SOUZA MANTOVANELLO-RM555451"
+location="brazilsouth"
+resourceGroup="rg-mindwork-gs"
+appServicePlan="ASP-rgmindworkgs-b86e"
+skuPlan="B1"
+apiWebApp="mindwork-api-gs"
+deployWebApp="deploy-api-mindwork"
+appInsightsName="mindwork-api-gs"
+sqlServerMain="sql-mindwork-gs"
+sqlDbMain="mindworkdb"
+sqlServerDeploy="sql-mindwork-server"
+sqlDbDeploy="MindWorkDbDeploy"
+sqlAdminLogin="adminuser"
+sqlAdminPassword="@39813803Leo"
+ 
+az account set --subscription "$subscriptionId"
+ 
+az group create --name "$resourceGroup" --location "$location"
+ 
+az appservice plan create --name "$appServicePlan" --resource-group "$resourceGroup" --location "$location" --sku "$skuPlan" --is-linux false
+ 
+az webapp create --name "$apiWebApp" --resource-group "$resourceGroup" --plan "$appServicePlan" --runtime "DOTNETCORE:8.0"
+az webapp create --name "$deployWebApp" --resource-group "$resourceGroup" --plan "$appServicePlan" --runtime "DOTNETCORE:8.0"
+ 
+az monitor app-insights component create --app "$appInsightsName" --location "$location" --resource-group "$resourceGroup" --application-type web
+ 
+az sql server create --name "$sqlServerMain" --resource-group "$resourceGroup" --location "$location" --admin-user "$sqlAdminLogin" --admin-password "$sqlAdminPassword"
+az sql server firewall-rule create --name AllowAzureServices --resource-group "$resourceGroup" --server "$sqlServerMain" --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+az sql db create --name "$sqlDbMain" --server "$sqlServerMain" --resource-group "$resourceGroup" --service-objective S0
+ 
+az sql server create --name "$sqlServerDeploy" --resource-group "$resourceGroup" --location "$location" --admin-user "$sqlAdminLogin" --admin-password "$sqlAdminPassword"
+az sql server firewall-rule create --name AllowAzureServices --resource-group "$resourceGroup" --server "$sqlServerDeploy" --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+az sql db create --name "$sqlDbDeploy" --server "$sqlServerDeploy" --resource-group "$resourceGroup" --service-objective S0
+ 
+mainConn="Server=tcp:$sqlServerMain.database.windows.net,1433;Initial Catalog=$sqlDbMain;Persist Security Info=False;User ID=$sqlAdminLogin;Password=$sqlAdminPassword;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+deployConn="Server=tcp:$sqlServerDeploy.database.windows.net,1433;Initial Catalog=$sqlDbDeploy;Persist Security Info=False;User ID=$sqlAdminLogin;Password=$sqlAdminPassword;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+ 
+az webapp config connection-string set --resource-group "$resourceGroup" --name "$apiWebApp" --settings "DefaultConnection=$mainConn" --connection-string-type SQLAzure
+az webapp config connection-string set --resource-group "$resourceGroup" --name "$deployWebApp" --settings "DefaultConnection=$deployConn" --connection-string-type SQLAzure
